@@ -26,6 +26,7 @@ function formatHuman(dateStr: string): string {
 const iconButtonClass =
   'rounded-full p-2 text-graphite transition-colors hover:bg-ivory hover:text-ink ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt ' +
+  'disabled:cursor-not-allowed disabled:opacity-40 ' +
   'dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100';
 
 interface DatePickerProps {
@@ -35,7 +36,9 @@ interface DatePickerProps {
 }
 
 export function DatePicker({ date, onDateChange }: DatePickerProps) {
-  const isToday = date === todayInputValue();
+  const today = todayInputValue();
+  const isToday = date === today;
+  const isTodayOrPast = date <= today;
 
   return (
     <div
@@ -47,6 +50,7 @@ export function DatePicker({ date, onDateChange }: DatePickerProps) {
         type="button"
         className={iconButtonClass}
         aria-label="Предыдущий день"
+        disabled={isTodayOrPast}
         onClick={() => onDateChange(shiftDate(date, -1))}
       >
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -60,8 +64,9 @@ export function DatePicker({ date, onDateChange }: DatePickerProps) {
         <input
           type="date"
           value={date}
+          min={today}
           onChange={(event) => {
-            if (event.target.value) onDateChange(event.target.value);
+            if (event.target.value && event.target.value >= today) onDateChange(event.target.value);
           }}
           aria-label="Дата расписания"
           className="w-[118px] cursor-pointer bg-transparent text-sm font-medium text-ink focus:outline-none dark:text-slate-200 dark:[color-scheme:dark]"
