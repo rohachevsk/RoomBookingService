@@ -3,8 +3,11 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
+import { authRateLimit } from '../middleware/rateLimit';
 
 export const authRouter = Router();
+
+authRouter.use(authRateLimit);
 
 authRouter.post('/register', async (req, res) => {
     try {
