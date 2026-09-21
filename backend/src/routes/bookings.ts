@@ -20,6 +20,11 @@ const isQuarterHour = (date: Date) => (
     && date.getUTCMinutes() % 15 === 0
 );
 
+const isUuid = (value: unknown): value is string => (
+    typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+);
+
 const isValidDateQuery = (value: unknown): value is string => {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
         return false;
@@ -77,6 +82,9 @@ bookingsRouter.post('/', authenticate, async (req, res) => {
 
         if (typeof roomId !== 'string' || typeof title !== 'string' || !title.trim() || !startTime || !endTime) {
             return res.status(400).json({ message: 'roomId, title, startTime and endTime are required' });
+        }
+        if (!isUuid(roomId)) {
+            return res.status(400).json({ message: 'Invalid roomId format' });
         }
 
         const duration = endTime.getTime() - startTime.getTime();
