@@ -25,6 +25,12 @@ authRouter.post('/register', async (req, res) => {
             });
         }
 
+        if (fullName.trim() === '') {
+            return res.status(400).json({
+                message: 'Full name is required',
+            });
+        }
+
         if (password.length < 6) {
             return res.status(400).json({
                 message: 'Password must be at least 6 characters long',
