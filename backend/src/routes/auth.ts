@@ -1,20 +1,22 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
+import { env } from '../config/env';
 
 export const authRouter = Router();
 
 authRouter.post('/register', async (req, res) => {
     try {
-        const { name, email, password } = req.body ?? {};
+        const { fullName, email, password } = req.body ?? {};
 
-        if (!name || !email || !password) {
+        if (!fullName || !email || !password) {
             return res.status(400).json({
-                message: 'Name, email and password are required',
+                message: 'Full name, email and password are required',
             });
         }
 
-        if (typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+        if (typeof fullName !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
             return res.status(400).json({
                 message: 'Invalid input types',
             });
@@ -40,16 +42,25 @@ authRouter.post('/register', async (req, res) => {
 
         const user = await prisma.user.create({
             data: {
-                name,
+                fullName,
                 email: email.toLowerCase(),
-                password: hashedPassword,
+                passwordHash: hashedPassword,
             },
             select: {
                 id: true,
-                name: true,
+                fullName: true,
                 email: true,
                 role: true,
                 createdAt: true,
+            },
+        });
+
+        await prisma.log.create({
+            data: {
+                userId: user.id,
+                action: 'REGISTER',
+                entity: 'users',
+                entityId: user.id,
             },
         });
 
@@ -62,5 +73,52 @@ authRouter.post('/register', async (req, res) => {
         return res.status(500).json({
             message: 'Internal server error',
         });
+    }
+});
+
+authRouter.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body ?? {};
+
+        if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { email: email.toLowerCase() },
+        });
+
+        if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+
+        const token = jwt.sign(
+            { role: user.role },
+            env.jwtSecret,
+            { subject: user.id, expiresIn: '1h' },
+        );
+
+        await prisma.log.create({
+            data: {
+                userId: user.id,
+                action: 'LOGIN',
+                entity: 'users',
+                entityId: user.id,
+            },
+        });
+
+        return res.json({
+            token,
+            user: {
+                id: user.id,
+                fullName: user.fullName,
+                email: user.email,
+                role: user.role,
+                createdAt: user.createdAt,
+            },
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        return res.status(500).json({ message: 'Internal server error' });
     }
 });

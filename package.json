@@ -12,9 +12,13 @@
         "start": "npm run start --workspace backend",
         "db:generate": "npm run db:generate --workspace backend",
         "db:migrate": "npm run db:migrate --workspace backend",
-        "db:studio": "npm run db:studio --workspace backend"
+        "db:studio": "npm run db:studio --workspace backend",
+        "db:seed": "npm run db:seed --workspace backend"
     },
     "devDependencies": {
         "concurrently": "^9.1.0"
+    },
+    "dependencies": {
+        "lucide-react": "^1.46.0"
     }
 }

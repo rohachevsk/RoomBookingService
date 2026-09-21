@@ -14,40 +14,62 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  name      String
-  email     String    @unique
-  password  String
-  role      UserRole  @default(USER)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  bookings  Booking[]
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         UserRole  @default(USER)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+  bookings     Booking[]
+  logs         Log[]
+
+  @@map("users")
 }
 
 model Room {
-  id        Int       @id @default(autoincrement())
+  id        String    @id @default(uuid()) @db.Uuid
   name      String    @unique
-  floor     Int?
-  capacity  Int       @default(0)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  capacity  Int
+  equipment String[]  @default([])
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
   bookings  Booking[]
+
+  @@map("rooms")
 }
 
 model Booking {
-  id        Int           @id @default(autoincrement())
-  roomId    Int
+  id        String        @id @default(uuid()) @db.Uuid
+  roomId    String        @map("room_id") @db.Uuid
   room      Room          @relation(fields: [roomId], references: [id])
-  userId    Int
+  userId    String        @map("user_id") @db.Uuid
   user      User          @relation(fields: [userId], references: [id])
-  startTime DateTime
-  endTime   DateTime
-  status    BookingStatus @default(PENDING)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  title     String
+  startTime DateTime      @map("start_time")
+  endTime   DateTime      @map("end_time")
+  status    BookingStatus
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @default(now()) @updatedAt
 
   @@index([roomId, startTime])
   @@index([startTime, endTime])
+  @@map("bookings")
+}
+
+model Log {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@map("logs")
 }
 
 enum UserRole {
@@ -56,7 +78,6 @@ enum UserRole {
 }
 
 enum BookingStatus {
-  PENDING
   CONFIRMED
   CANCELLED
 }

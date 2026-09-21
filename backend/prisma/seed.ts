@@ -4,15 +4,18 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+    const now = new Date();
+
+    await prisma.log.deleteMany();
     await prisma.booking.deleteMany();
     await prisma.room.deleteMany();
     await prisma.user.deleteMany();
 
     const admin = await prisma.user.create({
         data: {
-            name: 'Admin User',
+            fullName: 'Admin User',
             email: 'admin@example.com',
-            password: bcrypt.hashSync('admin123', 10),
+            passwordHash: bcrypt.hashSync('admin123', 10),
             role: UserRole.ADMIN,
         },
     });
@@ -20,15 +23,15 @@ async function main() {
     await prisma.user.createMany({
         data: [
             {
-                name: 'Alice Johnson',
+                fullName: 'Alice Johnson',
                 email: 'alice@example.com',
-                password: bcrypt.hashSync('alice123', 10),
+                passwordHash: bcrypt.hashSync('alice123', 10),
                 role: UserRole.USER,
             },
             {
-                name: 'Bob Smith',
+                fullName: 'Bob Smith',
                 email: 'bob@example.com',
-                password: bcrypt.hashSync('bob123', 10),
+                passwordHash: bcrypt.hashSync('bob123', 10),
                 role: UserRole.USER,
             },
         ],
@@ -38,10 +41,10 @@ async function main() {
 
     await prisma.room.createMany({
         data: [
-            { name: 'Room Alpha', floor: 1, capacity: 6 },
-            { name: 'Room Beta', floor: 2, capacity: 8 },
-            { name: 'Room Gamma', floor: 3, capacity: 10 },
-            { name: 'Room Delta', floor: 4, capacity: 12 },
+            { name: 'Room Alpha', capacity: 6, equipment: ['projector', 'whiteboard'] },
+            { name: 'Room Beta', capacity: 8, equipment: ['tv'] },
+            { name: 'Room Gamma', capacity: 10, equipment: ['projector', 'tv'] },
+            { name: 'Room Delta', capacity: 12, equipment: ['whiteboard'] },
         ],
     });
 
@@ -52,6 +55,7 @@ async function main() {
             {
                 roomId: roomRecords[0].id,
                 userId: usersList[0].id,
+                title: 'Product planning',
                 startTime: new Date(now.getTime() + 3600000),
                 endTime: new Date(now.getTime() + 3 * 3600000),
                 status: BookingStatus.CONFIRMED,
@@ -59,13 +63,15 @@ async function main() {
             {
                 roomId: roomRecords[1].id,
                 userId: usersList[1].id,
+                title: 'Design review',
                 startTime: new Date(now.getTime() + 4 * 3600000),
                 endTime: new Date(now.getTime() + 6 * 3600000),
-                status: BookingStatus.PENDING,
+                status: BookingStatus.CONFIRMED,
             },
             {
                 roomId: roomRecords[2].id,
                 userId: admin.id,
+                title: 'Executive meeting',
                 startTime: new Date(now.getTime() + 8 * 3600000),
                 endTime: new Date(now.getTime() + 10 * 3600000),
                 status: BookingStatus.CONFIRMED,
@@ -73,6 +79,7 @@ async function main() {
             {
                 roomId: roomRecords[3].id,
                 userId: usersList[0].id,
+                title: 'Retrospective',
                 startTime: new Date(now.getTime() + 12 * 3600000),
                 endTime: new Date(now.getTime() + 14 * 3600000),
                 status: BookingStatus.CANCELLED,
