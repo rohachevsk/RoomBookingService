@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { MouseEvent } from 'react';
 import { Plus } from 'lucide-react';
 import type { Booking, Room } from '@/types/index';
 import { RoomCard } from './RoomCard';
@@ -9,6 +10,51 @@ export const DAY_END_HOUR = 20;
 const DAY_START_MIN = DAY_START_HOUR * 60;
 const DAY_TOTAL_MIN = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 const HOURS = DAY_END_HOUR - DAY_START_HOUR; // 12
+const MIN_BOOKING_MINUTES = 15; // mirrors the backend minimum duration
+
+export interface FreeInterval {
+  start: Date;
+  end: Date;
+}
+
+/**
+ * Free sub-intervals of one hour cell that fit at least one booking,
+ * i.e. the cell minus CONFIRMED bookings overlapping it.
+ */
+function freePartsInHour(roomBookings: Booking[], targetDay: Date, hour: number): FreeInterval[] {
+  const hourStart = new Date(targetDay);
+  hourStart.setHours(hour, 0, 0, 0);
+  const hourEnd = new Date(targetDay);
+  hourEnd.setHours(hour + 1, 0, 0, 0);
+
+  const busy = roomBookings
+    .map((booking) => {
+      const start = new Date(booking.startTime);
+      const end = new Date(booking.endTime);
+      return {
+        start: start < hourStart ? hourStart : start,
+        end: end > hourEnd ? hourEnd : end,
+      };
+    })
+    .filter((range) => range.end > range.start)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  const minimumMs = MIN_BOOKING_MINUTES * 60 * 1000;
+  const parts: FreeInterval[] = [];
+  let cursor = hourStart;
+  for (const range of busy) {
+    if (range.start.getTime() - cursor.getTime() >= minimumMs) {
+      parts.push({ start: new Date(cursor), end: new Date(range.start) });
+    }
+    if (range.end > cursor) {
+      cursor = range.end;
+    }
+  }
+  if (hourEnd.getTime() - cursor.getTime() >= minimumMs) {
+    parts.push({ start: new Date(cursor), end: hourEnd });
+  }
+  return parts;
+}
 
 export interface SlotSelection {
   roomId: string;
@@ -21,7 +67,7 @@ interface TimelineProps {
   bookings?: Booking[];
   /** Selected day in YYYY-MM-DD format. Defaults to today. */
   date?: string;
-  /** Called when a free hour cell is clicked (parent opens the booking modal). */
+  /** Called with a free interval (whole hour or its free part) when a cell is clicked. Parent opens the booking modal. */
   onSlotClick?: (slot: SlotSelection) => void;
 }
 
@@ -97,13 +143,19 @@ export function Timeline({ rooms = mockRooms, bookings = mockBookings, date, onS
     return `${((minutes - DAY_START_MIN) / DAY_TOTAL_MIN) * 100}%`;
   }, [isToday]);
 
-  const handleCellClick = (roomId: string, hour: number) => {
+  const handleCellClick = (roomId: string, hour: number, event: MouseEvent<HTMLButtonElement>) => {
     if (!onSlotClick) return;
-    const start = new Date(targetDay);
-    start.setHours(hour, 0, 0, 0);
-    const end = new Date(targetDay);
-    end.setHours(hour + 1, 0, 0, 0);
-    onSlotClick({ roomId, start, end });
+    const parts = freePartsInHour(bookingsByRoom.get(roomId) ?? [], targetDay, hour);
+    if (parts.length === 0) return;
+    // Propose the free part containing the click point (the visibly free area),
+    // falling back to the first bookable interval (e.g. keyboard activation).
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
+    const clicked = new Date(targetDay);
+    clicked.setHours(hour, Math.max(0, Math.min(59, Math.floor(ratio * 60))), 0, 0);
+    const containing = parts.find((part) => clicked >= part.start && clicked < part.end);
+    const selected = containing ?? parts[0];
+    onSlotClick({ roomId, start: selected.start, end: selected.end });
   };
 
   if (rooms.length === 0) {
@@ -156,15 +208,23 @@ export function Timeline({ rooms = mockRooms, bookings = mockBookings, date, onS
                   <div className="grid h-full grid-cols-12 divide-x divide-hairline dark:divide-slate-800/60">
                     {Array.from({ length: HOURS }).map((_, index) => {
                       const hour = DAY_START_HOUR + index;
-                      const clickable = room.isActive && onSlotClick !== undefined;
+                      const parts = freePartsInHour(roomBookings, targetDay, hour);
+                      const clickable = room.isActive && onSlotClick !== undefined && parts.length > 0;
+                      const hourLabel = `${String(hour).padStart(2, '0')}:00`;
                       return (
                         <button
                           key={index}
                           type="button"
                           disabled={!clickable}
-                          onClick={() => handleCellClick(room.id, hour)}
-                          aria-label={`Забронировать ${room.name} в ${String(hour).padStart(2, '0')}:00`}
-                          title={clickable ? `${room.name} · ${String(hour).padStart(2, '0')}:00–${String(hour + 1).padStart(2, '0')}:00` : undefined}
+                          onClick={(event) => handleCellClick(room.id, hour, event)}
+                          aria-label={`Забронировать ${room.name} в ${hourLabel}`}
+                          title={
+                            clickable
+                              ? `${room.name} · ${hourLabel}–${String(hour + 1).padStart(2, '0')}:00`
+                              : room.isActive
+                                ? `${room.name} · ${hourLabel} — нет свободного интервала`
+                                : undefined
+                          }
                           className={`group flex h-[76px] items-center justify-center transition-colors ${
                             clickable
                               ? 'cursor-pointer hover:bg-ivory dark:hover:bg-indigo-500/10'
